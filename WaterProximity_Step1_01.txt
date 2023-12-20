@@ -1,0 +1,87 @@
+*----------------------------------------------------------------------------------------------------------------------
+# Name:	WaterProximity_Step1_01.txt
+# Purpose:	Example Pig Script to process 1 NHD region-level Wastewater segments with
+#           Toxic Concentrations
+# Author:	OMS Contractor
+# Created:	12/2022
+# Updated:	10/2023
+# Inputs:	1 NHD region-level Wastewater line segments with Toxic Concentrations
+#           block centroids population weight table
+# Outputs:	block-pair proximity scores in Hive directory
+------------------------------------------------------------------------------------------------------------------------
+*/
+
+-- Register external libraries:
+
+-- Pigeon geometries 
+REGISTER s3://ejscreen2023/lib/pigeon-0.2.1.jar;
+-- Esri geometries
+REGISTER s3://ejscreen2023/lib/esri-geometry-api-2.1.0.jar;
+-- Pig storage
+REGISTER s3://ejscreen2023/lib/piggybank-0.14.0.jar;
+--custom weighted scores
+REGISTER s3://ejscreen2023/lib/ejscreen-udfs-1.jar;
+-- hadoop geometries
+REGISTER s3://ejscreen2023/lib/spatial-sdk-hadoop.jar;
+
+
+-- Load Region 01 DMRres Segments into A1
+A1 =  LOAD 's3://ejscreen2023/WaterProximity/Waterlines/DMRres01_hive/*' USING PigStorage('\u0001') 
+      AS (TOXCONC:double,COMID:chararray,REACHCODE:chararray,geom:chararray);
+
+-- Load block population weights table into B1
+B1 = LOAD 's3://ejscreen2023/proximity/EJScreen_BlockWeights_forHadoop_noZeroPops_2KBuf.csv.gz' USING org.apache.pig.piggybank.storage.CSVExcelStorage(',', 'NO_MULTILINE', 'UNIX', 'SKIP_INPUT_HEADER')
+    AS (objectid:chararray, stfips:chararray, id:chararray, totpop10:double, popwgt10:double, lat:double, lng:double, aland10:double, awater10:double, bg_12:chararray, areatot:double, stlist:chararray);
+
+---- Filter block population weights for all states included in this Region into B2
+B2 = FILTER B1 BY (stfips == '09') or (stfips == '23') or (stfips == '25') or (stfips == '33') or (stfips == '36') or (stfips == '44') or (stfips == '50'); 
+
+-- create point geometries and add to B
+B = FOREACH B2 GENERATE *, edu.umn.cs.pigeon.MakePoint(lng,lat) as point;
+
+-- add line geometries from HPMS line segments and load into D
+D = FOREACH A1 GENERATE TOXCONC, COMID, edu.umn.cs.pigeon.GeometryFromText(geom) as geom_bin;
+
+-- Cross assign  B (block weight with geometries) and D (line segments with geometries) into C
+C = CROSS B, D PARALLEL 500;
+
+-- generate all distance pairs and add to C1
+C1 = FOREACH C GENERATE TOXCONC, COMID, lat, lng, id, areatot, totpop10, popwgt10, aland10, awater10, bg_12, edu.umn.cs.pigeon.GeoDesicDistance(point,geom_bin) as distance;
+
+-- filter distance pairs <= 20000 meters into C2
+C2 = FILTER C1 BY ( distance <= 20000 );
+
+-- Find the <500 meter distance pairs 
+E1 = FILTER C2 BY ( distance <= 500 );
+
+-- generate weighted scores using WeightedScoreUDF function and add to E2
+E2 = FOREACH E1 GENERATE TOXCONC, COMID, lat, lng, distance, id, areatot, totpop10, popwgt10, aland10, awater10, bg_12, flatten(com.saic.WeightedScoreUDF(aland10,awater10,distance,totpop10,TOXCONC));
+
+-- store E2 into <= 500 hive space
+STORE E2 INTO 's3://ejscreen2023/WaterProximity/DMRres01/Step1/less500.gz' using PigStorage();
+
+-- Generate distinct pair ids
+J1 = FOREACH E1 GENERATE id as less_id;
+J2 = DISTINCT J1;
+
+-- Filter the <500 distance pairs from the greater than 500 set
+F1 = FILTER C2 BY ( distance > 500 );
+
+-- create greater than 500 meter set
+F2 = JOIN J2 by less_id RIGHT OUTER, F1 BY id PARALLEL 500;
+F3 = FILTER F2 BY ( less_id is null );
+
+-- generate distance pairs and add to F4
+F4 = FOREACH F3 GENERATE TOXCONC, COMID, lat,lng, distance, id, areatot , totpop10 , popwgt10 , aland10 , awater10 , bg_12;
+
+-- Find the closest segment to the >500m blocks; sort to get nearest and use WeightedScoreUDF function
+H = GROUP F4 BY id PARALLEL 500;
+I = FOREACH H {
+  sorted = ORDER F4 by distance ASC;
+  lim = LIMIT sorted 1;
+  GENERATE MAX(lim.TOXCONC), MAX(lim.COMID), MAX(lim.lat), MAX(lim.lng), MAX(lim.distance), MAX(lim.id),  MAX(lim.areatot), MAX(lim.totpop10), MAX(lim.popwgt10), MAX(lim.aland10), MAX(lim.awater10), MAX(lim.bg_12), 
+    flatten(com.saic.WeightedScoreUDF(MAX(lim.aland10),MAX(lim.awater10),MAX(lim.distance),MAX(lim.totpop10),MAX(lim.TOXCONC)));
+};
+
+-- store I into > 500 hive space
+STORE I INTO 's3://ejscreen2023/WaterProximity/DMRres01/Step1/greater500.gz' using PigStorage();

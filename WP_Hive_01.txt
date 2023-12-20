@@ -1,0 +1,36 @@
+*-----------------------------------------------------------------------------------------------------------------
+# Name:		WP_Hive_01.txt
+# Purpose:	Example Hive script to convert JSON to Hive
+# Author:	OMS Contractor
+# Created:	12/2022
+# Updated:	10/2023
+# Inputs:	One NHD-level Wastewater JSON file
+# Outputs:	One NHD-level Wastewater Hive directory
+-------------------------------------------------------------------
+*/
+
+-- Add Esri geometry and standard hive and json libraries
+
+add jar s3://ejscreen2023/lib/esri-geometry-api-2.1.0.jar;
+add jar s3://ejscreen2023/lib/spatial-sdk-hive-2.1.0.jar;
+add jar s3://ejscreen2023/lib/spatial-sdk-json-2.1.0.jar;
+
+-- define hive string function
+
+create temporary function ST_AsText as 'com.esri.hadoop.hive.ST_AsText';
+
+-- define json and hive structrues
+CREATE EXTERNAL TABLE IF NOT EXISTS DMRres01 (
+TOXCONC string,
+COMID string,
+REACHCODE string,
+geometry binary)                                         
+ROW FORMAT SERDE 'com.esri.hadoop.hive.serde.EsriJsonSerDe'             
+STORED AS INPUTFORMAT 'com.esri.json.hadoop.EnclosedEsriJsonInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+LOCATION 's3://ejscreen2023/WaterProximity/Waterlines/DMRres01';
+
+--write new hive structure
+
+insert overwrite directory 's3://ejscreen2023/WaterProximity/Waterlines/DMRres01_hive'
+select TOXCONC, COMID, REACHCODE, ST_AsText(geometry) from DMRres01;
