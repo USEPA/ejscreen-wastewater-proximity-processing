@@ -25,7 +25,7 @@ The wastewater discharge indicator takes into account pollutant loadings from th
 **Post-Hadoop Processing:**
 
 - Combine all BG score text files in OutputfromHadoop folder into one file (Wastewater\_BG\_Scores\_US.csv).
-- Prep with text editor (Capitalize first header row and remove all other header rows).
+- Open Wastewater_BG_Scores.csv in a text editor to capitalize the header and remove all other header rows. 
 - Import US csv file to Excel; make sure BLKGRP is text.
 - Add the US Excel file to the geodatabase (Wastewater\_Work.gdb) as new table (Wastewater\_BG\_Scores\_All).
 - Some BG's are processed in more than one NHD region, so use the Frequency tool on BLKGRP with sum(blkgrp\_score) to produce Wastewater\_BG\_Scores\_Final.
