@@ -1,10 +1,10 @@
 # **Generating EJScreen Wastewater Proximity**
 
-EJScreen uses Apache Hadoop pig scripts to generate wastewater discharge proximity. The Pig scripts were developed using Esri's [GIS Toolkit for Hadoop](https://esri.github.io/gis-tools-for-hadoop/) toolkit. It was run in an AWS EMR cluster environment. The source data came from EPA's Office of Pollution Prevention and Toxics (OPPT). The proximity process involves Pre-Hadoop processing, running Hadoop Pig scripts, and Post-Hadoop processing. The end results are Census block-group based proximity scores.
+EJScreen uses Apache Hadoop pig scripts to generate wastewater discharge proximity. The Pig scripts were developed using Esri's [GIS Toolkit for Hadoop](https://esri.github.io/gis-tools-for-hadoop/) toolkit. It was run in an AWS EMR cluster environment. The source data were provided by EPA's Office of Pollution Prevention and Toxics (OPPT) as stream reaches. The proximity process involves Pre-Hadoop processing, running Hadoop Pig scripts, and Post-Hadoop processing. The end results are Census block-group based proximity scores.
 
 **Sources:**
 
-The wastewater discharge indicator takes into account pollutant loadings from the Discharge Monitoring Report (DMR) Loading Tool (which include NPDES DMR discharges and TRI releases) for toxic chemicals reported to the Toxics Release Inventory. The data were input into the RSEI model (Version 2.3.10) to incorporate chemical toxicity and fate and transport in order to estimate concentrations of pollutants in downstream water bodies (i.e., stream reaches) and derive a toxicity-weighted concentration. The stream reaches are from the National Hydrography Dataset (NHD Version 2.0). Coverage is for NHD Region 01 through Region 21, but does not include Alaska Region 19.
+The wastewater discharge indicator takes into account pollutant loadings from the Discharge Monitoring Report (DMR) Loading Tool (which include NPDES DMR discharges and TRI releases) for toxic chemicals reported to the Toxics Release Inventory. The nearest stream reach(es) was identified for each NPDES discharge. The data were then inputted into the RSEI model (Version 2.3.10) to incorporate chemical toxicity and fate and transport in order to estimate concentrations of pollutants in downstream water bodies (i.e., stream reaches) and derive a toxicity-weighted concentration. The stream reaches are from the National Hydrography Dataset (NHD Version 2.0). Coverage is for NHD Region 01 through Region 21, but does not include Alaska, which is Region 19.
 
 **Pre-Hadoop Processing:**
 
